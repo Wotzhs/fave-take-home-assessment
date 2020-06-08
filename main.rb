@@ -1,73 +1,54 @@
-class Tax
-  FIRST_TAX_BRACKET = { cap: 20000,  rate: 0.00 }
-  SECOND_TAX_BRACKET = { cap: 20000, rate: 0.10 }
-  THIRD_TAX_BRACKET = { cap: 40000, rate: 0.20 }
-  FOURTH_TAX_BRACKET = { cap: 100000, rate: 0.30 }
-  MAX_TAX_RATE = { rate: 0.40 }
-  
-  def self.first_tax_bracket
-    return Struct.new(*FIRST_TAX_BRACKET.keys).new(*FIRST_TAX_BRACKET.values)
-  end
+require "socket"
+require "cgi"
+require "json"
+require_relative "employee"
 
-  def self.second_tax_bracket 
-    return Struct.new(*SECOND_TAX_BRACKET.keys).new(*SECOND_TAX_BRACKET.values)
-  end
+server = TCPServer.new 5678
 
-  def self.third_tax_bracket 
-    return Struct.new(*THIRD_TAX_BRACKET.keys).new(*THIRD_TAX_BRACKET.values)
-  end
-
-  def self.fourth_tax_bracket
-    return Struct.new(*FOURTH_TAX_BRACKET.keys).new(*FOURTH_TAX_BRACKET.values)
-  end
-
-  def self.max_tax_bracket
-    return Struct.new(*MAX_TAX_RATE.keys).new(*MAX_TAX_RATE.values)
-  end
+def get_salary_breakdown(query)
+  employee = Employee.new(query["employee_name"], query["annual_salary"].to_f)
+  return JSON.pretty_generate({
+    "employee_name" => employee.name,
+    "gross_monthly_income" => "%0.2f" % employee.compute_monthly_income,
+    "monthly_income_tax" => "%0.2f" % employee.compute_monthly_tax,
+    "net_monthly_income" => "%0.2f" % employee.compute_monthly_tax,
+  })
 end
 
-class Employee
-  def initialize(name, gross_salary_pa)
-    @name = name
-    @gross_salary_pa = gross_salary_pa
+def writeResponse(session, status, body)
+  session.print "HTTP/1.1 %d\r\n" % [status]
+  session.print "Content-Type: application/json\r\n"
+  session.print "\r\n"
+  session.print body
+end
+
+puts "Server listening at localhost:5678"
+
+while session = server.accept
+  request = session.gets
+  puts request
+
+  method, full_path = request.split(" ")
+
+  if method != "GET"
+    writeResponse(session, 405, "405 Method Not Allowed")
+    next
+  end
+  
+  path, query = full_path.split("?")
+
+  if path != "/"
+    writeResponse(session, 404, "404 Bad Request")
+    next
   end
 
-  def generate_monthly_payslip
-    p "Monthly Payslip for: %s" % [@name]
-    p "Gross Monthly Income: $%0.2f" % [self.compute_monthly_income]
-    p "Monthly Income Tax: %0.2f" % [self.compute_monthly_tax]
-    p "Net Monthly Income: %0.2f" % [self.compute_net_monthly_income]
+  query = CGI.parse(query||"").transform_values(&:first)
+  if query["employee_name"].length < 1 || query["annual_salary"].length < 1
+    writeResponse(session, 404, "404 Bad Request")
+    next;
   end
 
-  def compute_monthly_income
-    return (@gross_salary_pa/12.0).round(2)
-  end
+  writeResponse(session, 200, get_salary_breakdown(query))
 
-  def compute_monthly_tax
-    income = @gross_salary_pa
-    first_bracket = income && [Tax.first_tax_bracket.cap, income].min;
-    income -= Tax.first_tax_bracket.cap
-
-    second_bracket = income && [Tax.second_tax_bracket.cap, [income, 0].max].min;
-    income -= Tax.second_tax_bracket.cap
-
-    third_bracket = income && [Tax.third_tax_bracket.cap, [income, 0].max].min;
-    income -= Tax.third_tax_bracket.cap
-
-    fourth_bracket = income && [Tax.fourth_tax_bracket.cap, [income, 0].max ].min;
-    income -= Tax.fourth_tax_bracket.cap
-
-    fifth_bracket = income && [income, 0].max;
-
-    total_tax = first_bracket * Tax.first_tax_bracket.rate
-    total_tax += second_bracket * Tax.second_tax_bracket.rate
-    total_tax += third_bracket * Tax.third_tax_bracket.rate
-    total_tax += fourth_bracket * Tax.fourth_tax_bracket.rate
-    total_tax += fifth_bracket * Tax.max_tax_bracket.rate
-    return (total_tax/12.0).round(2)
-  end
-
-  def compute_net_monthly_income
-    return (self.compute_monthly_income - self.compute_monthly_tax).round(2)
-  end
+  session.close
 end
