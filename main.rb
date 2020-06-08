@@ -11,7 +11,7 @@ def get_salary_breakdown(query)
     "employee_name" => employee.name,
     "gross_monthly_income" => "%0.2f" % employee.compute_monthly_income,
     "monthly_income_tax" => "%0.2f" % employee.compute_monthly_tax,
-    "net_monthly_income" => "%0.2f" % employee.compute_monthly_tax,
+    "net_monthly_income" => "%0.2f" % employee.compute_net_monthly_income,
   })
 end
 
