@@ -1,6 +1,6 @@
 require "minitest/autorun"
 require "minitest/reporters"
-require_relative "main.rb"
+require_relative "employee.rb"
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 

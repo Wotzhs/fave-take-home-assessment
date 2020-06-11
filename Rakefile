@@ -1,5 +1,5 @@
 task default: %w[test]
 
 task :test do
-	ruby "main_test.rb"
+	ruby "*_test.rb"
 end
